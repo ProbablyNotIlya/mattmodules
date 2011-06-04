@@ -14,6 +14,7 @@ GMOD_MODULE(Startup, Cleanup);
 namespace VFS {
 
 static std::vector<FileHandle_t> s_vecHandles;
+static std::vector<std::string> s_vecDisallowed;
 
 static bool IsValidFileHandle(FileHandle_t fh)
 {
@@ -22,6 +23,21 @@ static bool IsValidFileHandle(FileHandle_t fh)
 		itr++)
 	{
 		if( *itr == fh )
+			return true;
+	}
+	return false;
+}
+
+static bool IsExtensionDisallowed(const char* pszExt)
+{
+	if( !pszExt )
+		return false;
+
+	for(std::vector<std::string>::iterator itr = s_vecDisallowed.begin();
+		itr != s_vecDisallowed.end();
+		itr++)
+	{
+		if( *itr == pszExt )
 			return true;
 	}
 	return false;
@@ -58,17 +74,25 @@ static int Open(lua_State* L)
 #if defined(WIN32)
 	if( pszPath[1] == ':' )
 	{
-		Lua()->Error("Invalid Path ( Absolute path not allowed )");
+		Lua()->ErrorNoHalt("Invalid Path ( Absolute path not allowed )");
+		Lua()->PushNil();
 	}
 #else
 	if( pszPath[1] == "/" )
 	{
 		Lua()->Error("Invalid Path ( Absolute path not allowed )");
+		Lua()->PushNil();
 	}
 #endif
 	else if( strstr(pszPath, "../") != NULL )
 	{
-		Lua()->Error("Invalid Path ( You can not leave the directory )");
+		Lua()->ErrorNoHalt("Invalid Path ( You can not leave the directory )");
+		Lua()->PushNil();
+	}
+	else if( IsExtensionDisallowed(strrchr(pszPath, '.')) )
+	{
+		Lua()->ErrorNoHalt("Extension disallowed");
+		Lua()->PushNil();
 	}
 	else
 	{
@@ -489,6 +513,10 @@ int Startup(lua_State* L)
 {
 	FS::LoadFilesystem();
 	CRC32::CRC32Init();
+
+	VFS::s_vecDisallowed.push_back(".dll");
+	VFS::s_vecDisallowed.push_back(".exe");
+	VFS::s_vecDisallowed.push_back(".so");
 
 	ILuaObject* pTable = Lua()->GetNewTable();
 	{
