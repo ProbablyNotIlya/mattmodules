@@ -460,7 +460,7 @@ static int CRC_32(lua_State* L)
 		return 0;
 	}
 
-	unsigned int nCRC32 = 0;
+	unsigned int nCRC32 = 0xFFFFFFFF;
 	unsigned int nCurPos = FS::g_pFilesystem->Tell(fh);
 	unsigned char szBuffer[512];
 
@@ -474,10 +474,11 @@ static int CRC_32(lua_State* L)
 
 		nCRC32 = CRC32::CRC32Hash(nCRC32, szBuffer, nRead);
 	}
+	nCRC32 = ~nCRC32;
 
 	FS::g_pFilesystem->Seek(fh, nCurPos, FILESYSTEM_SEEK_HEAD);
 
-	Lua()->PushLong(nCRC32);
+	Lua()->PushDouble((double)nCRC32);
 
 	return 1;
 }
@@ -487,6 +488,7 @@ static int CRC_32(lua_State* L)
 int Startup(lua_State* L)
 {
 	FS::LoadFilesystem();
+	CRC32::CRC32Init();
 
 	ILuaObject* pTable = Lua()->GetNewTable();
 	{
