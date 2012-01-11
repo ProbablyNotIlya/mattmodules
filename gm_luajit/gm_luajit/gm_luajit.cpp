@@ -106,7 +106,7 @@ static int Run(lua_State *L)
 				{
 					LuaHelper::UserData_t *pUserData = (LuaHelper::UserData_t*)lua_newuserdata(g_pLuaJIT, sizeof(LuaHelper::UserData_t));
 					pUserData->pData = (void*)Lua()->GetReference(nStackPos);
-					//lua_pop(g_pLuaJIT, 1);
+					lua_pop(g_pLuaJIT, 1);
 
 					LuaHelper::SetField(nCount, (void*)pUserData, g_pLuaJIT);
 				}
@@ -115,7 +115,7 @@ static int Run(lua_State *L)
 				{
 					LuaHelper::UserData_t *pUserData = (LuaHelper::UserData_t*)lua_newuserdata(g_pLuaJIT, sizeof(LuaHelper::UserData_t));
 					pUserData->pData = (void*)Lua()->GetReference(nStackPos);
-					//lua_pop(g_pLuaJIT, 1);
+					lua_pop(g_pLuaJIT, 1);
 
 					LuaHelper::SetField(nCount, (void*)pUserData, g_pLuaJIT);
 
@@ -194,7 +194,7 @@ static int GLuaCall(lua_State *L)
 	case LUA_TLIGHTUSERDATA:
 		{
 			LuaHelper::UserData_t *pUserData = (LuaHelper::UserData_t*)lua_touserdata(L, 1);
-			Lua()->PushReference((int)pUserData->pData);
+			pGLua->PushReference((int)pUserData->pData);
 		}
 		break;
 	case LUA_TSTRING:

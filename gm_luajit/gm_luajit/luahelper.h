@@ -7,6 +7,12 @@
 
 #include "luajit/lua.hpp"
 
+namespace GLuaJIT {
+
+extern lua_State *g_pGLua;
+
+}
+
 namespace LuaHelper {
 
 struct UserData_t
@@ -41,27 +47,16 @@ inline void Push(lua_State *L, ILuaObject *pObj)
 			lua_pushnil(L);
 		}
 		break;
-	case GLua::TYPE_LIGHTUSERDATA:
-	// UserData
-	case GLua::TYPE_ENTITY: 
-	case GLua::TYPE_VECTOR: 
-	case GLua::TYPE_ANGLE:
-	case GLua::TYPE_PHYSOBJ:
-	case GLua::TYPE_SAVE:
-	case GLua::TYPE_RESTORE:
-	case GLua::TYPE_DAMAGEINFO:
-	case GLua::TYPE_EFFECTDATA:
-	case GLua::TYPE_MOVEDATA:
-	case GLua::TYPE_RECIPIENTFILTER:
-	case GLua::TYPE_USERCMD:
-	case GLua::TYPE_SCRIPTEDVEHICLE:
+	default:
 		{
+			ILuaInterface *pGLua = modulemanager->GetLuaInterface(GLuaJIT::g_pGLua);
+
+			pGLua->Push(pObj);
+			int nReference = pGLua->GetReference(-1, true);
+
 			UserData_t *pUserData = (UserData_t*)lua_newuserdata(L, sizeof(UserData_t));
-			pUserData->pData = pObj->GetUserData();
-			pUserData->nType = nType;
-			//lua_pushlightuserdata(L, pUserData);
+			pUserData->pData = (void*)nReference;
 		}
-		break;
 	}
 }
 
