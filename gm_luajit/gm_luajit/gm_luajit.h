@@ -5,6 +5,11 @@
 #pragma once
 #endif
 
+#if defined(_DEBUG) && defined(_WIN32)
+#include <conio.h>
+#include <windows.h>
+#endif 
+
 #include <string>
 #include <stack>
 

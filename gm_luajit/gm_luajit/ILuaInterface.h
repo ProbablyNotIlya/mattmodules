@@ -333,6 +333,27 @@ class ILuaInterface : public ILuaInterface002
 		virtual void PushDouble( double iInt ) = 0;
 		
 		// ScriptEnforcer "private" methods
+		virtual int GetStack(int level, void* ar) = 0;				// lua_getstack
+		virtual int GetInfo(char const* what, void *ar) = 0;		// lua_getinfo
+		virtual const char* GetLocal(void* ar, int n) = 0;			// lua_getlocal
+		virtual int GetUpvalue(int funcindex, int n) = 0;			// lua_getupvalue
+		virtual int CreateTable(int narr, int nrec) = 0;			// lua_createtable
+		virtual int DisableInfiniteLoopChecking(void) = 0;			// Disables the lua hook for infinite loop check
+		virtual int RunStringEx(char const* buffer, 
+			char const* scriptpath, 
+			char const* format, 
+			bool unk3, 
+			bool reserved, 
+			bool errornohalt) = 0;
+		virtual int PushDataString(char const* cbData, unsigned int cubBuffer) = 0;
+		virtual void ResetMD5(void) = 0;
+		virtual int MD5Changed(void) = 0;
+		virtual int MD5Ack(int) = 0;
+		virtual int RequireGlobal(char const* global, char unk1) = 0;
+		virtual int ErrorFromLua(char const* pszFormat, ...) = 0;
+		virtual int SetTick(int nTick) = 0;
+		virtual const char* GetMD5String(void) = 0;
+		virtual int GetCurrentLocation(void) = 0;
 };
 
 #endif // ILUAINTERFACE_H

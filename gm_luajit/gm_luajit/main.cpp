@@ -8,6 +8,10 @@ GMOD_MODULE(Startup, Cleanup);
 
 int Startup(lua_State* L)
 {
+#if defined(_DEBUG) && defined(_WIN32)
+	AllocConsole();
+#endif
+
 	GLuaJIT::Startup(L);
 	return 0;
 }
