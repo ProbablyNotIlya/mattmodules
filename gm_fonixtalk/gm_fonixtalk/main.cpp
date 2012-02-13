@@ -1,6 +1,8 @@
 #define WIN32_LEAN_AND_MEAN
 #define NO_SDK
 
+#define MAX_SPEAK_SLOTS	50
+
 #include "GMLuaModule.h"
 #include "LibraryHandle.h"
 #include "FonixTalk.h"
@@ -8,7 +10,9 @@
 GMOD_MODULE(Startup, Cleanup);
 
 static CLibraryHandle g_hFonix;
-static FonixHandle_t g_hLangHandle = {0};
+static FonixHandle_t g_hLangHandle[MAX_SPEAK_SLOTS] = {0};
+static int g_hSpeakSlot = 0;
+
 static const char *g_pchVoices[] =
 {
 	"[:np]", // Paul 
@@ -30,19 +34,44 @@ static int FonixTalk_SetRate(lua_State *L)
 	if( nRate < 50 || nRate > 600 )
 		nRate = 180;
 
-	int nResult = g_hFonix.StdCall<int>("TextToSpeechSetRate", g_hLangHandle.Index[0], nRate);
+	for(int i = 0; i < MAX_SPEAK_SLOTS; i++)
+		g_hFonix.StdCall<int>("TextToSpeechSetRate", g_hLangHandle[i].Index[0], nRate);
 
-	Lua()->PushLong(nResult);
+	Lua()->PushLong(1);
 	return 1;
 }
 
 static int FonixTalk_Reset(lua_State *L)
 {
 	// 0018F804   004058EB  RETURN to speak.004058EB from speak._TextToSpeechReset@8
-	int nResult = g_hFonix.StdCall<int>("TextToSpeechReset", g_hLangHandle.Index[0], 0);
+	for(int i = 0; i < MAX_SPEAK_SLOTS; i++)
+		g_hFonix.StdCall<int>("TextToSpeechReset", g_hLangHandle[i].Index[0], 0);
 
-	Lua()->PushLong(nResult);
+	Lua()->PushLong(1);
 	return 1;
+}
+
+static int FonixTalk_Stop(lua_State *L)
+{
+	FonixParams_t* pParams = NULL;
+	unsigned short* dwDummy2 = 0;
+	unsigned short* dwDummy3 = 0;
+	unsigned short* dwDummy4 = 0;
+
+	for(int i = 0; i < MAX_SPEAK_SLOTS; i++)
+	{
+		int nResult = g_hFonix.StdCall<int>("TextToSpeechGetSpeakerParams", g_hLangHandle[i].Index[0], 0, &pParams, &dwDummy2, &dwDummy3, &dwDummy4);
+		if( nResult != 0 || pParams == NULL )
+			continue;
+
+		nResult = g_hFonix.StdCall<int>("TextToSpeechReset", g_hLangHandle[i].Index[0], 0);
+
+		nResult = g_hFonix.StdCall<int>("TextToSpeechSetSpeakerParams", g_hLangHandle[i].Index[0], pParams);
+		if( nResult != 0 )
+			continue;
+	}
+
+	return 0;
 }
 
 static int FonixTalk_SetVoice(lua_State *L)
@@ -54,9 +83,11 @@ static int FonixTalk_SetVoice(lua_State *L)
 		nVoice = 0;
 
 	const char *pchVoice = g_pchVoices[nVoice];
-	int nResult = g_hFonix.StdCall<int>("TextToSpeechSpeakA", g_hLangHandle.Index[0], pchVoice, 1);
 
-	Lua()->PushLong(nResult);
+	for(int i = 0; i < MAX_SPEAK_SLOTS; i++)
+		g_hFonix.StdCall<int>("TextToSpeechSpeakA", g_hLangHandle[i].Index[0], pchVoice, 1);
+
+	Lua()->PushLong(1);
 	return 1;
 }
 
@@ -66,7 +97,11 @@ static int FonixTalk_Speak(lua_State *L)
 
 	const char *pchSpeak = Lua()->GetString(1);
 
-	int nResult = g_hFonix.StdCall<int>("TextToSpeechSpeakA", g_hLangHandle.Index[0], pchSpeak, 1);
+	g_hSpeakSlot++;
+	if( g_hSpeakSlot >= MAX_SPEAK_SLOTS )
+		g_hSpeakSlot = 0;
+
+	int nResult = g_hFonix.StdCall<int>("TextToSpeechSpeakA", g_hLangHandle[g_hSpeakSlot].Index[0], pchSpeak, 1);
 
 	Lua()->PushLong(nResult);
 	return 1;
@@ -87,16 +122,19 @@ static int FonixTalk_SetPitch(lua_State *L)
 	unsigned short* dwDummy3 = 0;
 	unsigned short* dwDummy4 = 0;
 
-	nResult = g_hFonix.StdCall<int>("TextToSpeechGetSpeakerParams", g_hLangHandle.Index[0], 0, &pParams, &dwDummy2, &dwDummy3, &dwDummy4);
-	if( nResult != 0 || pParams == NULL )
-		return 0;
+	for(int i = 0; i < MAX_SPEAK_SLOTS; i++)
+	{
+		nResult = g_hFonix.StdCall<int>("TextToSpeechGetSpeakerParams", g_hLangHandle[i].Index[0], 0, &pParams, &dwDummy2, &dwDummy3, &dwDummy4);
+		if( nResult != 0 || pParams == NULL )
+			continue;
 
-	pParams->Pitch = (unsigned short)nPitch;
-	pParams->Dummy1 = 50;
+		pParams->Pitch = (unsigned short)nPitch;
+		pParams->Dummy1 = 50;
 
-	nResult = g_hFonix.StdCall<int>("TextToSpeechSetSpeakerParams", g_hLangHandle.Index[0], pParams);
-	if( nResult != 0 )
-		return 0;
+		nResult = g_hFonix.StdCall<int>("TextToSpeechSetSpeakerParams", g_hLangHandle[i].Index[0], pParams);
+		if( nResult != 0 )
+			continue;
+	}
 
 	Lua()->PushLong(1);
 	return 1;
@@ -110,20 +148,31 @@ int __cdecl FonixCallback(int a1, WPARAM wParam)
 
 int Startup(lua_State* L)
 {
-	if( !g_hFonix.Load("FonixTalk.dll") ) 
-		return 1;
+	if( !g_hFonix.Load("FonixTalk.dll") )
+	{
+		Lua()->Error("Unable to load FonixTalk.dll");
+		return 0;
+	}
 
 	int nResult = 0;
-
-	unsigned int nLang = g_hFonix.StdCall<int>("TextToSpeechStartLangA", "US");
+	unsigned int nLang = g_hFonix.StdCall<unsigned int>("TextToSpeechStartLangA", "US");
 
 	nResult = g_hFonix.StdCall<int>("TextToSpeechSelectLang", 0, nLang);
 	if( nResult != 1 ) 
-		return 1;
+	{
+		Lua()->Error("Unable to load language");
+		return 0;
+	}
 
-	nResult = g_hFonix.StdCall<int>("TextToSpeechStartupEx", &g_hLangHandle, 0xFFFFFFFF, 2, &FonixCallback, nLang);
-	if( nResult != 0 )
-		return 1;
+	for(int i = 0; i < MAX_SPEAK_SLOTS; i++)
+	{
+		nResult = g_hFonix.StdCall<int>("TextToSpeechStartupEx", &g_hLangHandle[i], 0xFFFFFFFF, 2, &FonixCallback, nLang);
+		if( nResult != 0 )
+		{
+			Lua()->Error("Unable to start FonixTalk, missing dictionary?");
+			return 0;
+		}
+	}
 
 	Lua()->NewGlobalTable("FonixTalk");
 	ILuaObject *pFonixTalk = Lua()->GetGlobal("FonixTalk");
@@ -151,6 +200,12 @@ int Startup(lua_State* L)
 
 int Cleanup(lua_State* L)
 {
+	for(int i = 0; i < MAX_SPEAK_SLOTS; i++)
+	{
+		g_hFonix.StdCall<int>("TextToSpeechReset", g_hLangHandle[i].Index[0], 0);
+		g_hFonix.StdCall<int>("TextToSpeechShutdown", g_hLangHandle[i].Index[0]);
+	}
+
 	g_hFonix.Free();
 	return 0;
 }
